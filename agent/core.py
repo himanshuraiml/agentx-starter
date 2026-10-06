@@ -32,18 +32,23 @@ class AgentExecutor:
 
     def run(self, query, verbose=False):
         messages = [{"role": "user", "content": query}]
-        trace, seen = [], {}
+        trace, seen, nudged = [], {}, False
         for step in range(self.max_iterations):
             force_final = any(n > config.MAX_SAME_TOOL_CALLS for n in seen.values())
             if force_final:
                 messages.append({"role": "user", "content": "You repeated a tool. Give your final_answer now."})
             reply = self.llm.generate(self.system, messages)
             data = parse_json(reply)
-            if data is None:
-                messages += [{"role": "assistant", "content": reply},
-                             {"role": "user", "content": "Invalid format. Reply with ONE JSON object only."}]
+            if data is None or not (data.get("action") or "final_answer" in data):
+                messages += [{"role": "assistant", "content": reply or "(empty)"},
+                             {"role": "user", "content": "Invalid format. Reply with ONE JSON object with an \"action\" or a \"final_answer\"."}]
                 continue
             thought = str(data.get("thought", ""))
+            if "final_answer" in data and not trace and not nudged:
+                nudged = True  # an agent must ground its answer in at least one tool result
+                messages += [{"role": "assistant", "content": json.dumps(data)},
+                             {"role": "user", "content": "Do not answer from memory. Call list_files, then read the data with a tool first."}]
+                continue
             if "final_answer" in data:
                 if verbose:
                     print(f"[Thought] {thought}\n[Final] {data['final_answer']}")
@@ -72,4 +77,4 @@ class AgentExecutor:
         """Out of steps: ask once for a final answer from what we have."""
         messages.append({"role": "user", "content": "Step limit reached. Reply with a final_answer JSON now."})
         data = parse_json(self.llm.generate(self.system, messages)) or {}
-        return str(data.get("final_answer", "I could not finish within the step limit."))
+        return str(data.get("final_answer") or "I could not finish within the step limit.")

@@ -48,6 +48,7 @@ Scoring in short: Agentic architecture & autonomy 40, domain utility 30, code hy
 ## Troubleshooting
 | Problem | Fix |
 |---|---|
+| `model_not_found` / 403 on Groq | Groq changes its free models. Set `GROQ_MODEL` in `.env` to one your key lists (see `.env.example`) |
 | `429` / rate limit | The LLM wrapper retries; add `time.sleep(2)` between steps, or set `AGENTX_PROVIDER=groq` |
 | Agent loops on one tool | Lower `MAX_ITERATIONS`; the repeat guard in `agent/core.py` forces an answer |
 | No admin / old Python | Use the Colab notebook |
